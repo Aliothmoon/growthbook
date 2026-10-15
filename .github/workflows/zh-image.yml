@@ -1,0 +1,75 @@
+# Fork only: build the GrowthBook image with the zh-CN UI translation.
+# The front-end is built here and copied over the official image of the same
+# release (see scripts/zh/README.md), then pushed to GHCR.
+name: zh-CN image
+
+on:
+  push:
+    branches: [zh-cn]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: zh-image
+  cancel-in-progress: true
+
+env:
+  GROWTHBOOK_VERSION: "5.1.0"
+  NODE_OPTIONS: --max-old-space-size=8192
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build shared packages
+        run: pnpm build:deps
+
+      - name: Test zh-CN translator
+        run: pnpm --filter front-end exec vitest run test/zhUiTranslation.test.ts
+
+      - name: Build front-end
+        run: pnpm --filter front-end build
+
+      - name: Prepare image context
+        run: |
+          mkdir -p "$RUNNER_TEMP/image"
+          cp -r packages/front-end/.next "$RUNNER_TEMP/image/.next"
+          rm -rf "$RUNNER_TEMP/image/.next/cache"
+          cp -r packages/front-end/public "$RUNNER_TEMP/image/public"
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/growthbook-zh" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ runner.temp }}/image
+          file: scripts/zh/Dockerfile
+          build-args: GROWTHBOOK_VERSION=${{ env.GROWTHBOOK_VERSION }}
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.GROWTHBOOK_VERSION }}
+            ${{ env.IMAGE }}:${{ env.GROWTHBOOK_VERSION }}-${{ env.SHORT_SHA }}
