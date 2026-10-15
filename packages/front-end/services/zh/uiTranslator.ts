@@ -1,6 +1,7 @@
 import {
   CompiledDictionary,
   compileDictionary,
+  normalizeText,
   translateText,
   zhDictionaryValidator,
 } from "./dictionary";
@@ -12,6 +13,7 @@ import {
 
 export const DICTIONARY_URL = "/zh/dict.zh-CN.json";
 const LANG_STORAGE_KEY = "gb-ui-lang";
+const DEBUG_STORAGE_KEY = "gb-ui-zh-debug";
 
 // Code, editors and user-editable content are never translated.
 // Add data-no-translate to any element whose text must stay as is.
@@ -39,14 +41,21 @@ export type UiTranslator = {
   translateTree: (node: Node) => void;
 };
 
+export type UiTranslatorOptions = {
+  // Called once per distinct text that contains Latin letters but has no translation
+  onMiss?: (text: string) => void;
+};
+
 export function createUiTranslator(
   dict: CompiledDictionary,
   root: Node,
+  { onMiss }: UiTranslatorOptions = {},
 ): UiTranslator {
   // Values this translator wrote, so its own mutations are not processed again
   const written = new WeakMap<Node, string>();
   const writtenAttrs = new WeakMap<Element, Map<string, string>>();
   const cache = new Map<string, string | null>();
+  const reported = new Set<string>();
 
   function lookup(raw: string): string | null {
     const cached = cache.get(raw);
@@ -54,6 +63,13 @@ export function createUiTranslator(
     const out = translateText(raw, dict);
     if (cache.size > 20000) cache.clear();
     cache.set(raw, out);
+    if (out === null && onMiss) {
+      const text = normalizeText(raw);
+      if (/[A-Za-z]{2}/.test(text) && !reported.has(text)) {
+        reported.add(text);
+        onMiss(text);
+      }
+    }
     return out;
   }
 
@@ -165,6 +181,45 @@ function readLangPreference(): string {
   }
 }
 
+// ?zhdebug=1 records the UI text that has no translation; run
+// copy(__gbZhMissing()) in the browser console to export it. ?zhdebug=0 stops.
+function readDebugPreference(): boolean {
+  try {
+    const fromQuery = new URLSearchParams(window.location.search).get(
+      "zhdebug",
+    );
+    if (fromQuery === "1") window.localStorage.setItem(DEBUG_STORAGE_KEY, "1");
+    if (fromQuery === "0") window.localStorage.removeItem(DEBUG_STORAGE_KEY);
+    return window.localStorage.getItem(DEBUG_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+declare global {
+  interface Window {
+    __gbZhMissing?: () => string;
+  }
+}
+
+function createMissCollector(): (text: string) => void {
+  // text -> pages it was seen on
+  const missing = new Map<string, Set<string>>();
+  window.__gbZhMissing = () =>
+    JSON.stringify(
+      [...missing.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([s, pages]) => ({ s, pages: [...pages].slice(0, 3) })),
+      null,
+      1,
+    );
+  return (text) => {
+    const pages = missing.get(text) ?? new Set<string>();
+    pages.add(window.location.pathname);
+    missing.set(text, pages);
+  };
+}
+
 let started = false;
 
 export async function startUiTranslation(): Promise<void> {
@@ -177,5 +232,8 @@ export async function startUiTranslation(): Promise<void> {
   const dict = zhDictionaryValidator.parse(await res.json());
 
   document.documentElement.lang = "zh-CN";
-  createUiTranslator(compileDictionary(dict), document.documentElement).start();
+  const onMiss = readDebugPreference() ? createMissCollector() : undefined;
+  createUiTranslator(compileDictionary(dict), document.documentElement, {
+    onMiss,
+  }).start();
 }

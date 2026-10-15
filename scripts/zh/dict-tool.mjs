@@ -6,10 +6,12 @@
 //     dictionary yet into <workDir>/in/chunk-NNN.json for translation.
 //     Translators write <workDir>/out/chunk-NNN.json: { "<i>": "<译文>" }.
 //
-//   node scripts/zh/dict-tool.mjs merge <workDir>
+//   node scripts/zh/dict-tool.mjs merge [workDir]
 //     Validate every out/ chunk against its in/ chunk and merge the valid
 //     translations into packages/front-end/public/zh/dict.zh-CN.json.
 //     Rejected entries are listed in <workDir>/problems.json.
+//     scripts/zh/manual.zh-CN.json (hand-written entries, e.g. date-fns
+//     output that is not in the source) is applied last and always wins.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -23,14 +25,15 @@ const DICT_PATH = path.join(
   root,
   "packages/front-end/public/zh/dict.zh-CN.json",
 );
+const MANUAL_PATH = path.join(root, "scripts/zh/manual.zh-CN.json");
 
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const placeholderSet = (s) =>
-  new Set([...s.matchAll(/\{\d+\}/g)].map((m) => m[0]));
+  new Set([...s.matchAll(/\{#?\d+\}/g)].map((m) => m[0]));
 // Placeholders glued to a word (field{1}) are usually English plural suffixes
 // and may be left out of the translation; all others are required.
 const requiredPlaceholders = (s) =>
-  new Set([...s.matchAll(/(^|[^A-Za-z])(\{\d+\})/g)].map((m) => m[2]));
+  new Set([...s.matchAll(/(^|[^A-Za-z])(\{#?\d+\})/g)].map((m) => m[2]));
 
 function placeholdersOk(en, zh) {
   const all = placeholderSet(en);
@@ -97,15 +100,37 @@ function checkEntry(item, zh) {
   return null;
 }
 
+function applyManual(dict, problems) {
+  if (!fs.existsSync(MANUAL_PATH)) return 0;
+  const manual = readJson(MANUAL_PATH);
+  let n = 0;
+  for (const kind of ["strings", "patterns"]) {
+    for (const [en, zh] of Object.entries(manual[kind] ?? {})) {
+      const error = checkEntry({ s: en }, zh);
+      if (error) {
+        problems.push({ chunk: "manual", s: en, zh, error });
+        continue;
+      }
+      dict[kind][en] = zh;
+      n++;
+    }
+  }
+  return n;
+}
+
 function merge(workDir) {
   const dict = loadDict();
   const problems = [];
   let added = 0;
-  const inDir = path.join(workDir, "in");
-  for (const name of fs
-    .readdirSync(inDir)
-    .filter((f) => f.endsWith(".json"))
-    .sort()) {
+  const inDir = workDir ? path.join(workDir, "in") : null;
+  const chunkFiles =
+    inDir && fs.existsSync(inDir)
+      ? fs
+          .readdirSync(inDir)
+          .filter((f) => f.endsWith(".json"))
+          .sort()
+      : [];
+  for (const name of chunkFiles) {
     const items = readJson(path.join(inDir, name));
     const outFile = path.join(workDir, "out", name);
     if (!fs.existsSync(outFile)) {
@@ -139,24 +164,31 @@ function merge(workDir) {
       added++;
     }
   }
+  const manual = applyManual(dict, problems);
   saveDict(dict);
-  fs.writeFileSync(
-    path.join(workDir, "problems.json"),
-    JSON.stringify(problems, null, 1),
-  );
+  if (workDir) {
+    fs.writeFileSync(
+      path.join(workDir, "problems.json"),
+      JSON.stringify(problems, null, 1),
+    );
+  }
+  for (const p of problems.filter((x) => x.chunk === "manual")) {
+    console.error(`manual entry rejected: ${p.s} (${p.error})`);
+  }
   console.log(
-    `merged ${added} entries; dictionary now has ${Object.keys(dict.strings).length} strings, ` +
-      `${Object.keys(dict.patterns).length} patterns; ${problems.length} problems -> problems.json`,
+    `merged ${added} entries and ${manual} manual entries; dictionary now has ` +
+      `${Object.keys(dict.strings).length} strings, ` +
+      `${Object.keys(dict.patterns).length} patterns; ${problems.length} problems`,
   );
 }
 
 const [cmd, ...args] = process.argv.slice(2);
 if (cmd === "chunks" && args.length >= 2)
   chunks(args[0], args[1], Number(args[2] ?? 200));
-else if (cmd === "merge" && args.length === 1) merge(args[0]);
+else if (cmd === "merge" && args.length <= 1) merge(args[0]);
 else {
   console.error(
-    "usage: dict-tool.mjs chunks <extractDir> <workDir> [size] | merge <workDir>",
+    "usage: dict-tool.mjs chunks <extractDir> <workDir> [size] | merge [workDir]",
   );
   process.exit(2);
 }

@@ -25,6 +25,17 @@ const dict = compileDictionary({
   },
 });
 
+const nestedDict = compileDictionary({
+  strings: { Monday: "周一", "less than a minute": "不到 1 分钟" },
+  patterns: {
+    "{0} ago": "{0}前",
+    "in {0}": "{0}后",
+    "{0} days": "{0} 天",
+    "about {0} hours": "约 {0} 小时",
+    "last {0} at {1}": "上{0} {1}",
+  },
+});
+
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("normalizeText", () => {
@@ -75,6 +86,32 @@ describe("translateText", () => {
     expect(
       translateText("Your setup in Shop has 1 check to review.", dict),
     ).toBe("你的设置 in Shop有 1 项检查待审阅。");
+  });
+
+  it("translates the values captured by a pattern", () => {
+    expect(translateText("3 days ago", nestedDict)).toBe("3 天前");
+    expect(translateText("less than a minute ago", nestedDict)).toBe(
+      "不到 1 分钟前",
+    );
+    expect(translateText("in about 2 hours", nestedDict)).toBe("约 2 小时后");
+    expect(translateText("last Monday at 3:12 PM", nestedDict)).toBe(
+      "上周一 3:12 PM",
+    );
+    // unknown values are kept as they are
+    expect(translateText("lots of time ago", nestedDict)).toBe(
+      "lots of time前",
+    );
+  });
+
+  it("only fills {#n} placeholders with numbers", () => {
+    const numeric = compileDictionary({
+      strings: {},
+      patterns: { "{#0} days ago": "{#0} 天前", "in {#0} days": "{#0} 天后" },
+    });
+    expect(translateText("3 days ago", numeric)).toBe("3 天前");
+    expect(translateText("in 1,250 days", numeric)).toBe("1,250 天后");
+    expect(translateText("a few days ago", numeric)).toBeNull();
+    expect(translateText("in production days", numeric)).toBeNull();
   });
 });
 
@@ -136,6 +173,24 @@ describe("createUiTranslator", () => {
       document.querySelector("[data-no-translate] span")?.textContent,
     ).toBe("Experiments");
     expect(document.querySelector("p")?.textContent).toBe("实验");
+  });
+
+  it("reports each untranslated text once", () => {
+    document.body.innerHTML = `
+      <p>Experiments</p>
+      <p> Brand new  label </p>
+      <p>Brand new label</p>
+      <p>42</p>
+      <input placeholder="Type here" />
+      <pre>Not reported</pre>`;
+    const missed: string[] = [];
+    const t = createUiTranslator(dict, document.body, {
+      onMiss: (text) => missed.push(text),
+    });
+    t.start();
+    t.stop();
+
+    expect(missed.sort()).toEqual(["Brand new label", "Type here"]);
   });
 
   it("translates content added or changed later", async () => {

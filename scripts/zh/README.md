@@ -9,25 +9,39 @@ dictionary, so merging a new upstream release only touches a few files.
 | File                                              | Role                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/front-end/services/zh/uiTranslator.ts`  | Starts after the app mounts, loads the dictionary, translates text nodes and the `placeholder` / `title` / `aria-label` / `alt` attributes, and watches the DOM with a `MutationObserver`. Its callbacks run before the next paint, so new content is translated before it is shown |
-| `packages/front-end/services/zh/dictionary.ts`    | Pure helpers: whitespace normalization, exact lookup, `{0}` patterns                                                                                                                                                                                                                |
+| `packages/front-end/services/zh/dictionary.ts`    | Pure helpers: whitespace normalization, exact lookup, patterns                                                                                                                                                                                                                      |
 | `packages/front-end/pages/_app.tsx`               | One `useEffect` that calls `startUiTranslation()`                                                                                                                                                                                                                                   |
-| `packages/front-end/public/zh/dict.zh-CN.json`    | The dictionary, served at `/zh/dict.zh-CN.json` and loaded at runtime                                                                                                                                                                                                               |
+| `packages/front-end/public/zh/dict.zh-CN.json`    | The dictionary, served at `/zh/dict.zh-CN.json` and loaded at runtime. Generated, do not edit by hand                                                                                                                                                                               |
 | `packages/front-end/test/zhUiTranslation.test.ts` | Tests for the helpers and the DOM translator                                                                                                                                                                                                                                        |
-| `scripts/zh/extract-ui-strings.mjs`               | Extracts UI strings from the front-end source with the TypeScript AST                                                                                                                                                                                                               |
+| `scripts/zh/extract-ui-strings.mjs`               | Extracts UI strings from the front-end and `packages/shared` sources with the TypeScript AST                                                                                                                                                                                        |
 | `scripts/zh/dict-tool.mjs`                        | Splits untranslated strings into chunks and merges translated chunks with validation                                                                                                                                                                                                |
+| `scripts/zh/manual.zh-CN.json`                    | Hand-written entries for text that is not in the source, such as date-fns output (`3 days ago`, `yesterday at 3:12 PM`). Applied on every merge and wins over translated chunks                                                                                                     |
 | `scripts/zh/glossary.md`                          | Translation rules and glossary                                                                                                                                                                                                                                                      |
-| `scripts/zh/Dockerfile`                           | Builds the image: the official image with this fork's front-end build copied over it                                                                                                                                                                                                |
+| `scripts/zh/Dockerfile`                           | Builds the image from the official one with this fork's front-end build                                                                                                                                                                                                             |
 
 - Language switch: `?lang=en` switches back to English and `?lang=zh` switches to Chinese. The choice is kept in `localStorage` (`gb-ui-lang`); the default is Chinese.
 - Not translated: `code`, `pre`, `textarea`, editors (`.ace_editor`, `.cm-editor`, `.monaco-editor`), `contenteditable`, and anything marked `data-no-translate`.
-- `packages/front-end/enterprise/` is **not** extracted or modified. It is under the GrowthBook Enterprise License, and modified copies may only be used in production with a valid enterprise license. Strings that only appear there stay in English.
+- `packages/front-end/enterprise/` and `packages/shared/src/enterprise/` are **not** extracted or modified. They are under the GrowthBook Enterprise License, and modified copies may only be used in production with a valid enterprise license. Strings that only appear there stay in English.
+
+### Dictionary entries
+
+- `strings`: exact UI text, matched after collapsing whitespace.
+- `patterns`: `{0}`, `{1}` match any value; `{#0}` only matches a number, which keeps generic patterns such as `{#0} days` from catching other text. The most specific pattern (longest fixed text) wins. Values captured by `{0}` are looked up again, so `3 days ago` goes through `{#0} days ago`, and `last Monday at 3:12 PM` through `last {0} at {1}` and `Monday`.
+- A placeholder glued to a word, such as `field{1}`, is treated as an English plural suffix: when the value is `s`, `es` or empty it is dropped.
+
+## Finding untranslated text
+
+Open the app with `?zhdebug=1` (kept in `localStorage` until `?zhdebug=0`),
+browse the pages, then run `copy(__gbZhMissing())` in the browser console. It
+copies every text that had no translation, with the pages it was seen on, as
+`[{ "s": "...", "pages": ["/experiments"] }]`. Add the useful ones to
+`manual.zh-CN.json`, or extend the extractor and translate the new chunks.
 
 ## Known limits
 
 - Only whole text nodes are matched. A sentence split across elements (`Showing <b>3</b> of 10`) is translated piece by piece.
-- Values inside patterns are kept as they are, so `5 minutes ago` becomes `5 minutes前`.
 - User content that happens to equal a UI string, such as a metric named `Revenue`, is translated too.
-- Strings built in ways the extractor does not recognise stay in English. Add them to the dictionary by hand, or extend the extractor.
+- Text from the back-end (error messages, defaults) and strings built in ways the extractor does not recognise stay in English.
 
 ## Updating to a new GrowthBook release
 
@@ -43,21 +57,33 @@ node scripts/zh/dict-tool.mjs merge /tmp/gb-zh   # rejected entries -> problems.
 ```
 
 `chunks` only emits strings that are not in the dictionary yet. Strings that
-upstream removed stay in the dictionary; they are harmless.
+upstream removed stay in the dictionary; they are harmless. After editing only
+`manual.zh-CN.json`, run `node scripts/zh/dict-tool.mjs merge` without a work dir.
 
 ## Building the image
 
 CI does this on every push to `zh-cn`: `.github/workflows/zh-image.yml` builds
-the front-end on Linux and pushes `ghcr.io/<owner>/growthbook-zh:<version>`
-(plus a `<version>-<sha>` tag). Bump `GROWTHBOOK_VERSION` there when rebasing
-onto a new release. The steps it runs:
+the front-end on Linux, builds the image, checks it against the official one
+(runtime config, ownership and modes, the `.next` file count), and pushes
+`ghcr.io/<owner>/growthbook-zh:<version>` plus a `<version>-<sha>` tag. Bump
+`GROWTHBOOK_VERSION` there when rebasing onto a new release.
+
+The Dockerfile copies the official image's filesystem **without** its
+front-end `.next` and `public` into a fresh image, then adds this fork's build
+(browser source maps removed). Layering on top of the official image instead
+would keep the replaced `.next` in a lower layer and grow the image by its
+size. The official image's runtime config (`ENV`, `USER`, `WORKDIR`, `CMD`) is
+repeated in the Dockerfile; the CI check fails if it drifts after an upgrade.
+
+The steps it runs:
 
 ```bash
 pnpm build:deps
 pnpm --filter front-end build
-# context: .next (without .next/cache) and public
 mkdir -p /tmp/gb-zh/image
-cp -r packages/front-end/.next /tmp/gb-zh/image/.next && rm -rf /tmp/gb-zh/image/.next/cache
+cp -r packages/front-end/.next /tmp/gb-zh/image/.next
+rm -rf /tmp/gb-zh/image/.next/cache
+find /tmp/gb-zh/image/.next -name '*.map' -delete
 cp -r packages/front-end/public /tmp/gb-zh/image/public
 docker build -f scripts/zh/Dockerfile --build-arg GROWTHBOOK_VERSION=5.1.0 -t growthbook-zh:5.1.0 /tmp/gb-zh/image
 ```
@@ -79,3 +105,13 @@ runtime `node_modules` in the official image match the lockfile used for the bui
 The dictionary is loaded at runtime, so a dictionary-only change can also be
 deployed by replacing `public/zh/dict.zh-CN.json` in the container, for example
 with a bind mount, without rebuilding.
+
+## Memory
+
+The container runs the back-end API and the Next.js front-end server as two
+Node processes, plus the Python stats server. Each Node process holds about
+400 MB at idle, which is the loaded code and data rather than garbage, so
+`NODE_OPTIONS=--max-old-space-size=…` barely changes it. It is still useful as
+a cap so both processes cannot grow together past the container limit;
+`PM2_AUTORESTART=true` and `PM2_MAX_MEMORY_RESTART` make `scripts/run-apps.js`
+restart a single process instead of stopping the container.

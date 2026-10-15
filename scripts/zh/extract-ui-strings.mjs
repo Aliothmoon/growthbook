@@ -25,6 +25,7 @@ const outDir = path.resolve(
   process.argv[2] ?? path.join(os.tmpdir(), "growthbook-zh/extract"),
 );
 
+// Front-end sources, plus the shared package whose labels the front-end renders
 const SOURCE_DIRS = [
   "components",
   "pages",
@@ -33,7 +34,8 @@ const SOURCE_DIRS = [
   "services",
   "contexts",
   "utils",
-];
+].map((dir) => path.join(frontEnd, dir));
+SOURCE_DIRS.push(path.join(root, "packages/shared/src"));
 const SKIP_PATH = [
   /[\\/]enterprise[\\/]/,
   /[\\/]test[\\/]/,
@@ -42,6 +44,8 @@ const SKIP_PATH = [
   /[\\/]pages[\\/]api[\\/]/,
   /[\\/]pages[\\/]design-system[\\/]/,
   /[\\/]services[\\/]zh[\\/]/,
+  // REST API route metadata (OpenAPI summaries/descriptions), not shown in the UI
+  /[\\/]shared[\\/]src[\\/]validators[\\/]/,
 ];
 
 // JSX attributes that never hold UI copy
@@ -345,21 +349,41 @@ function uiContext(node) {
   }
   if (ts.isJsxAttribute(parent)) return !isNonUiAttr(parent.name.getText());
   if (ts.isPropertyAssignment(parent) && parent.initializer === child) {
-    return UI_PROPS.has(propName(parent.name));
+    // { label: "..." } is copy; any other property only when it reads like a phrase
+    return UI_PROPS.has(propName(parent.name)) ? true : PHRASE;
+  }
+  if (ts.isVariableDeclaration(parent) && parent.initializer === child) {
+    return UI_NAME.test(parent.name.getText()) ? true : false;
   }
   if (ts.isCallExpression(parent) || ts.isNewExpression(parent)) {
     const name = calleeName(parent.expression);
     return name !== null && (UI_CALLS.has(name) || name === "Error");
   }
-  if (ts.isReturnStatement(parent)) {
-    // return "Some label" inside a function whose name suggests a label
-    let fn = parent.parent;
+  if (
+    ts.isReturnStatement(parent) ||
+    (ts.isArrowFunction(parent) && parent.body === child)
+  ) {
+    // return "Some label" inside a function whose name suggests a label;
+    // elsewhere only phrases, to skip returned ids and enum values
+    let fn = ts.isArrowFunction(parent) ? parent : parent.parent;
     while (fn && !ts.isFunctionLike(fn)) fn = fn.parent;
     const fnName = fn && fn.name ? fn.name.getText() : "";
-    return /(Label|Title|Text|Message|Description|Name|Copy)$/i.test(fnName);
+    return /(Label|Title|Text|Message|Description|Name|Copy)$/i.test(fnName)
+      ? true
+      : PHRASE;
   }
   return false;
 }
+
+// Variables whose name says they hold copy: const title = "...", let errorMessage = "..."
+const UI_NAME =
+  /(label|title|text|message|description|heading|header|tooltip|placeholder|cta|copy|caption|subtitle|hint)$/i;
+
+// A capitalized, multi-word phrase without code characters, e.g. "Not started yet"
+const PHRASE = "phrase";
+const isPhrase = (s) =>
+  /^[A-Z][A-Za-z']*( [A-Za-z0-9'(),.:/&-]+)+[.!?:]?$/.test(s) &&
+  !/[_{}<>;=$`]/.test(s);
 
 function visit(node, file) {
   if (ts.isJsxText(node)) {
@@ -368,9 +392,12 @@ function visit(node, file) {
     ts.isStringLiteral(node) ||
     ts.isNoSubstitutionTemplateLiteral(node)
   ) {
-    if (uiContext(node)) addString(node.text, file);
+    const ctx = uiContext(node);
+    if (ctx === true) addString(node.text, file);
+    else if (ctx === PHRASE && isPhrase(normalize(node.text)))
+      addString(node.text, file);
   } else if (ts.isTemplateExpression(node)) {
-    if (uiContext(node)) addTemplate(node, file);
+    if (uiContext(node) === true) addTemplate(node, file);
   }
   ts.forEachChild(node, (c) => visit(c, file));
 }
@@ -392,8 +419,8 @@ function walk(dir, files = []) {
 }
 
 let fileCount = 0;
-for (const dir of SOURCE_DIRS) {
-  const abs = path.join(frontEnd, dir);
+const packagesDir = path.join(root, "packages");
+for (const abs of SOURCE_DIRS) {
   if (!fs.existsSync(abs)) continue;
   for (const file of walk(abs)) {
     if (SKIP_PATH.some((re) => re.test(file))) continue;
@@ -406,7 +433,7 @@ for (const dir of SOURCE_DIRS) {
       true,
       kind,
     );
-    visit(sf, path.relative(frontEnd, file).replace(/\\/g, "/"));
+    visit(sf, path.relative(packagesDir, file).replace(/\\/g, "/"));
     fileCount++;
   }
 }

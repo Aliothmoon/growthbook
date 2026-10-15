@@ -49,14 +49,55 @@ jobs:
 
       - name: Prepare image context
         run: |
-          mkdir -p "$RUNNER_TEMP/image"
-          cp -r packages/front-end/.next "$RUNNER_TEMP/image/.next"
-          rm -rf "$RUNNER_TEMP/image/.next/cache"
-          cp -r packages/front-end/public "$RUNNER_TEMP/image/public"
+          ctx="$RUNNER_TEMP/image"
+          mkdir -p "$ctx"
+          cp -r packages/front-end/.next "$ctx/.next"
+          rm -rf "$ctx/.next/cache"
+          du -sh "$ctx/.next"
+          # Browser source maps are only fetched by devtools; they are most of the build
+          find "$ctx/.next" -name '*.map' -delete
+          du -sh "$ctx/.next"
+          cp -r packages/front-end/public "$ctx/public"
+          echo "NEXT_FILES=$(find "$ctx/.next" -type f | wc -l)" >> "$GITHUB_ENV"
           echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/growthbook-zh" >> "$GITHUB_ENV"
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
       - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ runner.temp }}/image
+          file: scripts/zh/Dockerfile
+          build-args: GROWTHBOOK_VERSION=${{ env.GROWTHBOOK_VERSION }}
+          load: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.GROWTHBOOK_VERSION }}
+            ${{ env.IMAGE }}:${{ env.GROWTHBOOK_VERSION }}-${{ env.SHORT_SHA }}
+
+      - name: Verify image against the official one
+        run: |
+          official="growthbook/growthbook:$GROWTHBOOK_VERSION"
+          ours="$IMAGE:$GROWTHBOOK_VERSION"
+          docker pull -q "$official"
+          # Same runtime config (the DD_* build metadata is not carried over)
+          cfg='{{json .Config.User}} {{json .Config.WorkingDir}} {{json .Config.Cmd}} {{json .Config.Entrypoint}} {{json .Config.ExposedPorts}}'
+          env='{{range .Config.Env}}{{println .}}{{end}}'
+          diff <(docker inspect -f "$cfg" "$official") <(docker inspect -f "$cfg" "$ours")
+          diff <(docker inspect -f "$env" "$official" | grep -v '^DD_' | sort) <(docker inspect -f "$env" "$ours" | sort)
+          # Ownership and modes survive the copy, and .next is exactly the new build
+          check='const fs=require("fs");
+            const walk=(d)=>fs.readdirSync(d,{withFileTypes:true}).reduce((n,e)=>n+(e.isDirectory()?walk(d+"/"+e.name):1),0);
+            const s=(p)=>{const x=fs.statSync(p);return p+" "+x.uid+":"+x.gid+" "+(x.mode&0o7777).toString(8)};
+            console.log([s("/usr/local/src/app/packages/back-end/uploads"),s("/usr/local/src/app/packages/front-end"),s("/tmp")].join("\n"));
+            console.log("next-files "+walk("/usr/local/src/app/packages/front-end/.next"));'
+          docker run --rm --entrypoint /usr/local/bin/node "$official" -e "$check" | grep -v next-files > official.txt
+          docker run --rm --entrypoint /usr/local/bin/node "$ours" -e "$check" > ours.txt
+          cat ours.txt
+          diff official.txt <(grep -v next-files ours.txt)
+          grep -qx "next-files $NEXT_FILES" ours.txt
+          docker run --rm --entrypoint /usr/local/bin/node "$ours" -e 'require("fs").accessSync("/usr/local/src/app/packages/front-end/public/zh/dict.zh-CN.json")'
+          docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep growthbook
 
       - uses: docker/login-action@v3
         with:
@@ -64,12 +105,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
-        with:
-          context: ${{ runner.temp }}/image
-          file: scripts/zh/Dockerfile
-          build-args: GROWTHBOOK_VERSION=${{ env.GROWTHBOOK_VERSION }}
-          push: true
-          tags: |
-            ${{ env.IMAGE }}:${{ env.GROWTHBOOK_VERSION }}
-            ${{ env.IMAGE }}:${{ env.GROWTHBOOK_VERSION }}-${{ env.SHORT_SHA }}
+      - name: Push image
+        run: |
+          docker push "$IMAGE:$GROWTHBOOK_VERSION"
+          docker push "$IMAGE:$GROWTHBOOK_VERSION-$SHORT_SHA"

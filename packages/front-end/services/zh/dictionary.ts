@@ -2,7 +2,8 @@ import { z } from "zod";
 
 // zh-CN UI dictionary, served from public/zh/dict.zh-CN.json.
 // Keys are English UI strings extracted by scripts/zh/extract-ui-strings.mjs;
-// patterns use {0}, {1}, … for the values that vary, e.g. "{0} experiments".
+// patterns use {0}, {1}, … for the values that vary, e.g. "{0} experiments",
+// and {#0}, {#1}, … for values that must be numbers, e.g. "{#0} days ago".
 export const zhDictionaryValidator = z.object({
   strings: z.record(z.string(), z.string()),
   patterns: z.record(z.string(), z.string()),
@@ -28,7 +29,7 @@ export type CompiledDictionary = {
   patterns: CompiledPattern[];
 };
 
-const PLACEHOLDER = /^\{\d+\}$/;
+const PLACEHOLDER = /^\{#?\d+\}$/;
 
 // Must match normalize() in scripts/zh/extract-ui-strings.mjs
 // (\s includes the non-breaking space)
@@ -51,15 +52,19 @@ export function compileDictionary(dict: ZhDictionary): CompiledDictionary {
   for (const [en, zh] of Object.entries(dict.patterns)) {
     if (!zh) continue;
     const parts = normalizeText(en)
-      .split(/(\{\d+\})/)
+      .split(/(\{#?\d+\})/)
       .filter((part) => part !== "");
     const order: number[] = [];
     const suffix: boolean[] = [];
     const source = parts
       .map((part, i) => {
         if (!PLACEHOLDER.test(part)) return escapeRegExp(part);
+        order.push(Number(part.replace(/[{}#]/g, "")));
+        if (part.startsWith("{#")) {
+          suffix.push(false);
+          return "(\\d+(?:[.,]\\d+)*)";
+        }
         const glued = i > 0 && /[A-Za-z]$/.test(parts[i - 1]);
-        order.push(Number(part.slice(1, -1)));
         suffix.push(glued);
         return glued ? "(.*?)" : "(.+?)";
       })
@@ -82,6 +87,38 @@ export function compileDictionary(dict: ZhDictionary): CompiledDictionary {
   return { strings, patterns };
 }
 
+// Values captured by a pattern are translated too, up to this depth, so that
+// "3 days ago" becomes "3 天前" through "{0} ago" and "{0} days".
+const MAX_PATTERN_DEPTH = 2;
+
+function translateKey(
+  key: string,
+  dict: CompiledDictionary,
+  depth: number,
+): string | null {
+  const exact = dict.strings.get(key);
+  if (exact !== undefined) return exact;
+
+  if (key.length > 300) return null;
+  for (const { re, template, order, suffix } of dict.patterns) {
+    const match = re.exec(key);
+    if (!match) continue;
+    let out = template;
+    order.forEach((n, i) => {
+      const value = match[i + 1];
+      let fill = value;
+      if (suffix[i] && PLURAL_SUFFIX.test(value)) {
+        fill = "";
+      } else if (depth < MAX_PATTERN_DEPTH && /[A-Za-z]/.test(value)) {
+        fill = translateKey(value, dict, depth + 1) ?? value;
+      }
+      out = out.split(`{${n}}`).join(fill).split(`{#${n}}`).join(fill);
+    });
+    return out;
+  }
+  return null;
+}
+
 // Translate one piece of UI text, keeping its surrounding whitespace.
 // Returns null when there is nothing to translate.
 export function translateText(
@@ -94,20 +131,6 @@ export function translateText(
   const lead = raw.match(/^\s*/)?.[0] ?? "";
   const trail = raw.slice(lead.length).match(/\s*$/)?.[0] ?? "";
 
-  const exact = dict.strings.get(key);
-  if (exact !== undefined) return lead + exact + trail;
-
-  if (key.length > 300) return null;
-  for (const { re, template, order, suffix } of dict.patterns) {
-    const match = re.exec(key);
-    if (!match) continue;
-    let out = template;
-    order.forEach((n, i) => {
-      const value = match[i + 1];
-      const fill = suffix[i] && PLURAL_SUFFIX.test(value) ? "" : value;
-      out = out.split(`{${n}}`).join(fill);
-    });
-    return lead + out + trail;
-  }
-  return null;
+  const out = translateKey(key, dict, 0);
+  return out === null ? null : lead + out + trail;
 }
