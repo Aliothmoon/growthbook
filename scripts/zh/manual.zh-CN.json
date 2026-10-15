@@ -29,7 +29,8 @@
     "Thursday": "周四",
     "Friday": "周五",
     "Saturday": "周六",
-    "Sunday": "周日"
+    "Sunday": "周日",
+    "Passive": "中立者"
   },
   "patterns": {
     "{#0} minutes": "{#0} 分钟",
