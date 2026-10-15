@@ -122,6 +122,9 @@ const advancedFeatureList: AdvancedFeature[] = [
   ...dataScientistFeatureList,
 ];
 
+const showAdvancedFeature = (feature: AdvancedFeature) =>
+  !feature.commercialFeature || !process.env.HIDE_GROWTHBOOK_UPGRADE_CTAS;
+
 const GetStartedAndHomePage = ({
   showMarketingBanner = false,
 }: {
@@ -202,6 +205,7 @@ const GetStartedAndHomePage = ({
       });
     }
     return advancedFeatureListWithAnalytics
+      .filter(showAdvancedFeature)
       .sort(() => Math.random() - 0.5)
       .slice(0, 3);
   }, []);
@@ -404,12 +408,14 @@ const GetStartedAndHomePage = ({
                         direction={{ initial: "column", sm: "row" }}
                         gap="4"
                       >
-                        {dataScientistFeatureList.map((feature) => (
-                          <AdvancedFeaturesCard
-                            key={feature.title}
-                            {...feature}
-                          />
-                        ))}
+                        {dataScientistFeatureList
+                          .filter(showAdvancedFeature)
+                          .map((feature) => (
+                            <AdvancedFeaturesCard
+                              key={feature.title}
+                              {...feature}
+                            />
+                          ))}
                       </Flex>
                     </Box>
                   )}

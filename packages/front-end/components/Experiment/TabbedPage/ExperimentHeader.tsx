@@ -1298,9 +1298,13 @@ export default function ExperimentHeader({
                       {isBandit ? (
                         <TabsTrigger value="explore">Explore</TabsTrigger>
                       ) : null}
-                      {!isBandit && !isHoldout && (
-                        <TabsTrigger value="dashboards">Dashboards</TabsTrigger>
-                      )}
+                      {!isBandit &&
+                        !isHoldout &&
+                        hasCommercialFeature("dashboards") && (
+                          <TabsTrigger value="dashboards">
+                            Dashboards
+                          </TabsTrigger>
+                        )}
                       {disableHealthTab ? (
                         <DisabledHealthTabTooltip reason="UNSUPPORTED_DATASOURCE">
                           <TabsTrigger disabled value="health">

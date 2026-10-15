@@ -282,7 +282,9 @@ const ProjectPage: FC = () => {
           <Tabs defaultValue="members" persistInURL>
             <TabsList>
               <TabsTrigger value="members">Roles & Permissions</TabsTrigger>
-              <TabsTrigger value="approvals">Approvals</TabsTrigger>
+              {hasCommercialFeature("require-approvals") && (
+                <TabsTrigger value="approvals">Approvals</TabsTrigger>
+              )}
               <TabsTrigger value="settings">Experiment Settings</TabsTrigger>
             </TabsList>
             <Box pt="4">

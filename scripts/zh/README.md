@@ -43,11 +43,24 @@ copies every text that had no translation, with the pages it was seen on, as
 - User content that happens to equal a UI string, such as a metric named `Revenue`, is translated too.
 - Text from the back-end (error messages, defaults) and strings built in ways the extractor does not recognise stay in English.
 
+## Paid features are hidden
+
+This build runs without a GrowthBook license, so paid (Pro / Enterprise)
+features are hidden instead of being shown locked, and so are pages built on
+the Enterprise-licensed code under `enterprise/` (Product Analytics, Timeline,
+Metric Effects, Correlations…), which may only be used in production with a
+Pro or Enterprise license.
+
+- `packages/front-end/services/oss/hiddenRoutes.tsx` lists the hidden routes. `sidebarNav.ts` drops them from the sidebar and Cmd+K search, and `_app.tsx` redirects them home. Tested in `test/ossHiddenRoutes.test.ts`.
+- `next.config.js` sets upstream's `HIDE_GROWTHBOOK_UPGRADE_CTAS`. Upgrade buttons, `PremiumCallout`, `UpgradeMessage`, the pricing and paid-feature links on Get Started, and the Experiment Impact box check it.
+- Tabs and settings sections that only hold a paid feature are shown only with `hasCommercialFeature(...)`: feature Simulate / Code Refs / Validation, experiment Dashboards, metric Slices and Auto Slices, Metric Groups, Teams and Roles, project Approvals, and the Approval Flows / Custom Markdown / AI, bandit, learning and ramp schedule settings. The "Open in Explorer" buttons are removed.
+- Single locked options inside free forms (CUPED, sequential testing, schedules…) are left as upstream shows them, with their paid badge.
+
 ## Updating to a new GrowthBook release
 
 ```bash
 git fetch upstream --tags
-git rebase --onto vX.Y.Z v5.1.0 zh-cn    # conflicts can only be in _app.tsx
+git rebase --onto vX.Y.Z v5.1.0 zh-cn    # conflicts: _app.tsx and the files above
 pnpm install --frozen-lockfile
 node scripts/zh/extract-ui-strings.mjs /tmp/gb-zh/extract
 node scripts/zh/dict-tool.mjs chunks /tmp/gb-zh/extract /tmp/gb-zh 200

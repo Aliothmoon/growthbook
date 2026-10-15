@@ -45,6 +45,7 @@ export default function PremiumCallout({
   const [upgradeModal, setUpgradeModal] = useState(false);
 
   if (hasFeature && !docSection) return null;
+  if (!hasFeature && process.env.HIDE_GROWTHBOOK_UPGRADE_CTAS) return null;
   if (dismissible && dismissed)
     return renderWhenDismissed
       ? renderWhenDismissed(() => setDismissed(false))

@@ -80,6 +80,7 @@ const Layout = (): React.ReactElement => {
 
   const [upgradeModal, setUpgradeModal] = useState(false);
   const showUpgradeButton =
+    !process.env.HIDE_GROWTHBOOK_UPGRADE_CTAS &&
     canSubscribe &&
     permissionsUtil.canManageBilling() &&
     !organization.isVercelIntegration;

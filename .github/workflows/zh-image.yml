@@ -41,8 +41,8 @@ jobs:
       - name: Build shared packages
         run: pnpm build:deps
 
-      - name: Test zh-CN translator
-        run: pnpm --filter front-end exec vitest run test/zhUiTranslation.test.ts
+      - name: Test fork changes
+        run: pnpm --filter front-end exec vitest run test/zhUiTranslation.test.ts test/ossHiddenRoutes.test.ts
 
       - name: Build front-end
         run: pnpm --filter front-end build

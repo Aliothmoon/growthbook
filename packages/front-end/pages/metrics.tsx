@@ -12,10 +12,12 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import CreateMetricFromTemplate from "@/components/FactTables/CreateMetricFromTemplate";
 import PaidFeatureBadge from "@/components/GetStarted/PaidFeatureBadge";
 import usePermissionsUtil from "@/hooks/usePermissionsUtils";
+import { useUser } from "@/services/UserContext";
 
 const MetricsPage = (): React.ReactElement => {
   const { metrics, factMetrics, factTables, datasources, project } =
     useDefinitions();
+  const { hasCommercialFeature } = useUser();
 
   const hasDatasource = datasources.some((d) =>
     isProjectListValidForProject(d.projects, project),
@@ -84,10 +86,12 @@ const MetricsPage = (): React.ReactElement => {
         <Tabs defaultValue="metrics" persistInURL={true}>
           <TabsList>
             <TabsTrigger value="metrics">Individual Metrics</TabsTrigger>
-            <TabsTrigger value="metricgroups">
-              Metric Groups{" "}
-              <PaidFeatureBadge commercialFeature="metric-groups" mx="2" />
-            </TabsTrigger>
+            {hasCommercialFeature("metric-groups") && (
+              <TabsTrigger value="metricgroups">
+                Metric Groups{" "}
+                <PaidFeatureBadge commercialFeature="metric-groups" mx="2" />
+              </TabsTrigger>
+            )}
           </TabsList>
           <Box pt="4">
             <TabsContent value="metrics">

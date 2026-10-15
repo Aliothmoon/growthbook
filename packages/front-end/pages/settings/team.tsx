@@ -36,8 +36,10 @@ const TeamPage: FC = () => {
         <Box mb="5">
           <TabsList>
             <TabsTrigger value="members">Members</TabsTrigger>
-            <TabsTrigger value="teams">Teams</TabsTrigger>
-            <TabsTrigger value="roles">Roles</TabsTrigger>
+            {hasTeamsFeature && <TabsTrigger value="teams">Teams</TabsTrigger>}
+            {hasCustomRolesFeature && (
+              <TabsTrigger value="roles">Roles</TabsTrigger>
+            )}
           </TabsList>
         </Box>
 

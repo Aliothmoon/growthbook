@@ -321,7 +321,7 @@ export default function ExecReport() {
                 setExperimentsToShow={setExperimentsToShow}
               />
             </Box>
-          ) : (
+          ) : process.env.HIDE_GROWTHBOOK_UPGRADE_CTAS ? null : (
             <Box className="appbox" p="4" px="4" mb="4">
               <div className="pt-2">
                 <div className="row align-items-start mb-4">

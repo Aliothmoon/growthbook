@@ -65,7 +65,6 @@ import FactTableAutoSliceSelector from "@/components/FactTables/FactTableAutoSli
 import { useCurrency } from "@/hooks/useCurrency";
 import HistoryTable from "@/components/HistoryTable";
 import Modal from "@/components/Modal";
-import OpenInExplorerButton from "@/enterprise/components/ProductAnalytics/OpenInExplorerButton";
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -364,9 +363,6 @@ export default function FactMetricPage() {
   const datasource = factMetric.datasource
     ? getDatasourceById(factMetric.datasource)
     : null;
-  const canOpenInExplorer = datasource
-    ? permissionsUtil.canRunMetricQueries(datasource)
-    : false;
 
   const numerator = isFactFunnelMetric(factMetric)
     ? null
@@ -642,25 +638,6 @@ export default function FactMetricPage() {
           </Heading>
         </Flex>
         <Flex align="center" gap="2" pr="2">
-          <OpenInExplorerButton
-            enabled={canOpenInExplorer}
-            // Funnel metrics open in the Funnel Builder, which understands
-            // steps; every other type goes to the Metric Explorer as before.
-            href={
-              isFactFunnelMetric(factMetric)
-                ? `/product-analytics/explore/funnel?funnelMetricId=${encodeURIComponent(
-                    factMetric.id,
-                  )}`
-                : `/product-analytics/explore/metrics?metricId=${encodeURIComponent(
-                    factMetric.id,
-                  )}`
-            }
-            tooltip={
-              isFactFunnelMetric(factMetric)
-                ? "Open this funnel in the Funnel Builder to explore its steps, break them down by dimension, and try changes without affecting the metric."
-                : "Open this Fact Metric in the Product Analytics Explorer to view trends, compare time periods, and slice/dice a metric."
-            }
-          />
           <DropdownMenu
             trigger={
               <IconButton
@@ -926,7 +903,7 @@ export default function FactMetricPage() {
               </div>
             ) : null}
 
-            {factMetric.metricType !== "funnel" ? (
+            {factMetric.metricType !== "funnel" && hasMetricSlicesFeature ? (
               <div className="appbox p-3 mb-3">
                 <h4>
                   Auto Slices

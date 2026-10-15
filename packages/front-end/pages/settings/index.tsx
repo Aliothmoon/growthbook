@@ -539,27 +539,33 @@ const GeneralSettingsPage = (): React.ReactElement => {
             <TabsTrigger value={SETTINGS_TAB.metrics}>
               Metrics &amp; Data
             </TabsTrigger>
-            <TabsTrigger value={SETTINGS_TAB["approval-flow"]}>
-              <PremiumTooltip commercialFeature="require-approvals">
-                Approval Flows
-              </PremiumTooltip>
-            </TabsTrigger>
+            {hasCommercialFeature("require-approvals") && (
+              <TabsTrigger value={SETTINGS_TAB["approval-flow"]}>
+                <PremiumTooltip commercialFeature="require-approvals">
+                  Approval Flows
+                </PremiumTooltip>
+              </TabsTrigger>
+            )}
             <TabsTrigger value={SETTINGS_TAB.sdk}>
               SDK Configuration
             </TabsTrigger>
             <TabsTrigger value={SETTINGS_TAB.import}>
               Import &amp; Export
             </TabsTrigger>
-            <TabsTrigger value={SETTINGS_TAB.custom}>
-              <PremiumTooltip commercialFeature="custom-markdown">
-                Custom Markdown
-              </PremiumTooltip>
-            </TabsTrigger>
-            <TabsTrigger value={SETTINGS_TAB.ai}>
-              <PremiumTooltip commercialFeature="ai-suggestions">
-                AI &amp; Prompts
-              </PremiumTooltip>
-            </TabsTrigger>
+            {hasCommercialFeature("custom-markdown") && (
+              <TabsTrigger value={SETTINGS_TAB.custom}>
+                <PremiumTooltip commercialFeature="custom-markdown">
+                  Custom Markdown
+                </PremiumTooltip>
+              </TabsTrigger>
+            )}
+            {hasCommercialFeature("ai-suggestions") && (
+              <TabsTrigger value={SETTINGS_TAB.ai}>
+                <PremiumTooltip commercialFeature="ai-suggestions">
+                  AI &amp; Prompts
+                </PremiumTooltip>
+              </TabsTrigger>
+            )}
           </StickyTabsList>
           <Box mt="4">
             <TabsContent value={SETTINGS_TAB.experiment}>
@@ -567,17 +573,23 @@ const GeneralSettingsPage = (): React.ReactElement => {
                 cronString={cronString}
                 updateCronString={updateCronString}
               />
-              <Frame mb="4">
-                <BanditSettings page="org-settings" />
-              </Frame>
-              <Frame mb="4">
-                <LearningSettings />
-              </Frame>
+              {hasCommercialFeature("multi-armed-bandits") && (
+                <Frame mb="4">
+                  <BanditSettings page="org-settings" />
+                </Frame>
+              )}
+              {hasCommercialFeature("learnings") && (
+                <Frame mb="4">
+                  <LearningSettings />
+                </Frame>
+              )}
             </TabsContent>
 
             <TabsContent value={SETTINGS_TAB.feature}>
               <FeatureSettings />
-              <RampScheduleTemplates />
+              {hasCommercialFeature("ramp-schedules") && (
+                <RampScheduleTemplates />
+              )}
             </TabsContent>
 
             <TabsContent value={SETTINGS_TAB.metrics}>

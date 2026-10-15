@@ -44,6 +44,7 @@ import Button from "@/ui/Button";
 import Callout from "@/ui/Callout";
 import LinkButton from "@/ui/LinkButton";
 import { useUser } from "@/services/UserContext";
+import { isHiddenRoute } from "@/services/oss/hiddenRoutes";
 import useSDKConnections from "@/hooks/useSDKConnections";
 import EmptyState from "@/components/EmptyState";
 import FeatureSearchFilters from "@/components/Search/FeatureSearchFilters";
@@ -737,7 +738,7 @@ export default function FeaturesPage() {
 
           <TabsContent value="all-features">
             {renderFeaturesTable()}
-            {!isDemoProject && (
+            {!isDemoProject && !isHiddenRoute("/archetypes") && (
               <Callout status="info" mt="5" mb="3">
                 Test what values these features will return for your users from
                 the <Link href="/archetypes#simulate">Simulate</Link> page.

@@ -25,7 +25,9 @@ const ShowLicenseInfo: FC<{
   // but we want to show the actual plan on the license.
   const actualPlan = license?.plan || accountPlan;
 
-  const showUpgradeButton = ["oss", "starter"].includes(actualPlan || "");
+  const showUpgradeButton =
+    !process.env.HIDE_GROWTHBOOK_UPGRADE_CTAS &&
+    ["oss", "starter"].includes(actualPlan || "");
   const licensePlanText =
     (actualPlan === "enterprise"
       ? "Enterprise"

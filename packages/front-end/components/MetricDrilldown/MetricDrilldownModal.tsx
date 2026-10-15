@@ -644,7 +644,7 @@ const MetricDrilldownModal = ({
               <TabsTrigger value="overview">Overview</TabsTrigger>
               {isFunnelMetric ? (
                 <TabsTrigger value="funnel">Funnel</TabsTrigger>
-              ) : (
+              ) : ownerHasMetricSlices ? (
                 <TabsTrigger value="slices">
                   <Flex align="center" gap="1">
                     Slices
@@ -656,7 +656,7 @@ const MetricDrilldownModal = ({
                     )}
                   </Flex>
                 </TabsTrigger>
-              )}
+              ) : null}
               <TabsTrigger value="debug">Debug</TabsTrigger>
             </TabsList>
           </Box>

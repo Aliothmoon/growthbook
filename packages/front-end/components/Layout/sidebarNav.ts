@@ -6,10 +6,11 @@ import {
   GBProductAnalytics,
   GBSettings,
 } from "@/components/Icons";
+import { withoutHiddenLinks } from "@/services/oss/hiddenRoutes";
 import type { SidebarLinkFilterProps, SidebarLinkProps } from "./SidebarLink";
 import styles from "./Layout.module.scss";
 
-export const navlinks: SidebarLinkProps[] = [
+export const navlinks: SidebarLinkProps[] = withoutHiddenLinks([
   {
     name: "Home",
     href: "/",
@@ -368,7 +369,7 @@ export const navlinks: SidebarLinkProps[] = [
       },
     ],
   },
-];
+]);
 
 export type FlatNavItem = {
   name: string;

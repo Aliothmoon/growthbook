@@ -48,6 +48,7 @@ import AgentLauncher from "@/components/Agent/AgentLauncher";
 import { AgentPanelProvider } from "@/components/Agent/AgentPanelContext";
 import Callout from "@/ui/Callout";
 import { startUiTranslation } from "@/services/zh/uiTranslator";
+import { HiddenRouteGuard } from "@/services/oss/hiddenRoutes";
 
 // Make useLayoutEffect isomorphic (for SSR)
 if (typeof window === "undefined") React.useLayoutEffect = React.useEffect;
@@ -230,12 +231,14 @@ function App({
                                       <OrgPageContent>
                                         <GuidedGetStartedBar />
                                         <DefinitionsGuard>
-                                          <Component
-                                            {...{
-                                              ...pageProps,
-                                              envReady: ready,
-                                            }}
-                                          />
+                                          <HiddenRouteGuard>
+                                            <Component
+                                              {...{
+                                                ...pageProps,
+                                                envReady: ready,
+                                              }}
+                                            />
+                                          </HiddenRouteGuard>
                                         </DefinitionsGuard>
                                       </OrgPageContent>
                                     </main>

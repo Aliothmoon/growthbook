@@ -22,6 +22,7 @@ const DocumentationSidebar = ({
 
   const permissionsUtil = usePermissionsUtil();
   const canUpgrade =
+    !process.env.HIDE_GROWTHBOOK_UPGRADE_CTAS &&
     accountPlan !== "enterprise" &&
     permissionsUtil.canManageBilling() &&
     !organization.isVercelIntegration;
@@ -160,6 +161,7 @@ function getLinksFor(
   type: Props["type"],
   isVercelIntegration?: boolean,
 ): JSX.Element {
+  const showPaid = !process.env.HIDE_GROWTHBOOK_UPGRADE_CTAS;
   switch (type) {
     case "get-started":
     case "data-source":
@@ -173,9 +175,11 @@ function getLinksFor(
               5.1 Release Notes
             </LinkItem>
             <LinkItem href="https://docs.growthbook.io/">Docs</LinkItem>
-            <LinkItem href="https://www.growthbook.io/pricing">
-              Premium Features
-            </LinkItem>
+            {showPaid && (
+              <LinkItem href="https://www.growthbook.io/pricing">
+                Premium Features
+              </LinkItem>
+            )}
           </>
         );
       }
@@ -186,9 +190,11 @@ function getLinksFor(
           <LinkItem href="https://github.com/growthbook/growthbook/releases/tag/v5.1.0">
             5.1 Release Notes
           </LinkItem>
-          <LinkItem href="https://www.growthbook.io/pricing">
-            Premium Features
-          </LinkItem>
+          {showPaid && (
+            <LinkItem href="https://www.growthbook.io/pricing">
+              Premium Features
+            </LinkItem>
+          )}
         </>
       );
 
@@ -216,18 +222,22 @@ function getLinksFor(
           <LinkItem href="https://docs.growthbook.io/experiments">
             Running Experiments
           </LinkItem>
-          <LinkItem href="https://docs.growthbook.io/app/sticky-bucketing">
-            Sticky Bucketing
-            <PaidFeatureBadge commercialFeature="sticky-bucketing" mx="2" />
-          </LinkItem>
-          <LinkItem href="https://docs.growthbook.io/app/visual">
-            Visual Editor
-            <PaidFeatureBadge commercialFeature="visual-editor" mx="2" />
-          </LinkItem>
-          <LinkItem href="https://docs.growthbook.io/app/url-redirects">
-            URL Redirects
-            <PaidFeatureBadge commercialFeature="redirects" mx="2" />
-          </LinkItem>
+          {showPaid && (
+            <>
+              <LinkItem href="https://docs.growthbook.io/app/sticky-bucketing">
+                Sticky Bucketing
+                <PaidFeatureBadge commercialFeature="sticky-bucketing" mx="2" />
+              </LinkItem>
+              <LinkItem href="https://docs.growthbook.io/app/visual">
+                Visual Editor
+                <PaidFeatureBadge commercialFeature="visual-editor" mx="2" />
+              </LinkItem>
+              <LinkItem href="https://docs.growthbook.io/app/url-redirects">
+                URL Redirects
+                <PaidFeatureBadge commercialFeature="redirects" mx="2" />
+              </LinkItem>
+            </>
+          )}
         </>
       );
 
@@ -240,10 +250,12 @@ function getLinksFor(
           <LinkItem href="https://docs.growthbook.io/app/fact-tables">
             Fact Tables
           </LinkItem>
-          <LinkItem href="https://docs.growthbook.io/app/data-pipeline">
-            Data Pipeline Mode
-            <PaidFeatureBadge commercialFeature="pipeline-mode" mx="2" />
-          </LinkItem>
+          {showPaid && (
+            <LinkItem href="https://docs.growthbook.io/app/data-pipeline">
+              Data Pipeline Mode
+              <PaidFeatureBadge commercialFeature="pipeline-mode" mx="2" />
+            </LinkItem>
+          )}
           <LinkItem href="https://docs.growthbook.io/app/experiment-results">
             Experiment Results
           </LinkItem>

@@ -17,7 +17,6 @@ import { AddMembersModal } from "@/components/Teams/AddMembersModal";
 import { RoleRuleLines } from "@/components/Settings/Team/RoleRuleLabel";
 import ProjectRuleFields from "@/components/Settings/Team/ProjectRuleFields";
 import { MEMBER_COLUMN_WIDTHS } from "@/components/Settings/Team/memberTableWidths";
-import PremiumEmptyState from "@/components/PremiumEmptyState";
 import Button from "@/ui/Button";
 import SplitButton from "@/ui/SplitButton";
 import TextField from "@/ui/TextField";
@@ -209,21 +208,7 @@ const ProjectTeams: FC<{ project: string }> = ({ project }) => {
     refreshOrganization();
   };
 
-  if (!hasCommercialFeature("teams")) {
-    return (
-      <Box mt="6" mb="4">
-        <Heading as="h5" size="sm" mb="2">
-          Teams
-        </Heading>
-        <PremiumEmptyState
-          title="Teams"
-          description="Give a group of users a role on this Project in one step, and manage the group here."
-          commercialFeature="teams"
-          learnMoreLink="https://docs.growthbook.io/account/user-permissions#project-scoped-teams"
-        />
-      </Box>
-    );
-  }
+  if (!hasCommercialFeature("teams")) return null;
 
   return (
     <Box mt="6" mb="4">

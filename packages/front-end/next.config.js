@@ -17,6 +17,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Fork: this build runs without a license, so upgrade prompts are hidden.
+  env: {
+    HIDE_GROWTHBOOK_UPGRADE_CTAS: "true",
+  },
   turbopack: {
     root: path.join(__dirname, "../.."),
     // Ace workers: load as raw text so we can create Blob URLs. Turbopack doesn't support

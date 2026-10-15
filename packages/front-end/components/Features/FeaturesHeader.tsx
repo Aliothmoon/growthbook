@@ -662,13 +662,19 @@ export default function FeaturesHeader({
                       </Tooltip>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="test">Simulate</TabsTrigger>
-                  <TabsTrigger value="stats">Code Refs</TabsTrigger>
+                  {hasCommercialFeature("simulate") && (
+                    <TabsTrigger value="test">Simulate</TabsTrigger>
+                  )}
+                  {hasCommercialFeature("code-references") && (
+                    <TabsTrigger value="stats">Code Refs</TabsTrigger>
+                  )}
                   <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
                   {/* Hooks are self-hosted only and boolean flags have no schema, so Cloud booleans have nothing to validate */}
-                  {!(isCloud() && feature.valueType === "boolean") && (
-                    <TabsTrigger value="validation">Validation</TabsTrigger>
-                  )}
+                  {!(isCloud() && feature.valueType === "boolean") &&
+                    (hasCommercialFeature("json-validation") ||
+                      hasCommercialFeature("custom-hooks")) && (
+                      <TabsTrigger value="validation">Validation</TabsTrigger>
+                    )}
                   {/* Slot: revisionAndSettingsGroup portal mounts here when scrolled */}
                   <Box style={{ marginLeft: "auto", alignSelf: "center" }}>
                     <div ref={tabsSlotRef} />
