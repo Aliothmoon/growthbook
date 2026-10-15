@@ -47,6 +47,7 @@ import { CommandPaletteLauncher } from "@/components/CommandPalette/CommandPalet
 import AgentLauncher from "@/components/Agent/AgentLauncher";
 import { AgentPanelProvider } from "@/components/Agent/AgentPanelContext";
 import Callout from "@/ui/Callout";
+import { startUiTranslation } from "@/services/zh/uiTranslator";
 
 // Make useLayoutEffect isomorphic (for SSR)
 if (typeof window === "undefined") React.useLayoutEffect = React.useEffect;
@@ -125,6 +126,13 @@ function App({
       dedupeKeyAttributes: ["id", "organizationId"],
     })(growthbook);
   }, [ready]);
+
+  useEffect(() => {
+    // zh-CN UI translation (fork); ?lang=en switches back to English
+    startUiTranslation().catch((e) => {
+      console.log("Failed to start zh-CN UI translation", e);
+    });
+  }, []);
 
   useEffect(() => {
     // Load feature definitions JSON from GrowthBook API
