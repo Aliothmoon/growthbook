@@ -58,7 +58,8 @@ jobs:
           find "$ctx/.next" -name '*.map' -delete
           du -sh "$ctx/.next"
           cp -r packages/front-end/public "$ctx/public"
-          echo "NEXT_FILES=$(find "$ctx/.next" -type f | wc -l)" >> "$GITHUB_ENV"
+          # Files and symlinks: Turbopack links external packages from .next/node_modules
+          echo "NEXT_FILES=$(find "$ctx/.next" ! -type d | wc -l)" >> "$GITHUB_ENV"
           echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/growthbook-zh" >> "$GITHUB_ENV"
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
@@ -85,15 +86,17 @@ jobs:
           env='{{range .Config.Env}}{{println .}}{{end}}'
           diff <(docker inspect -f "$cfg" "$official") <(docker inspect -f "$cfg" "$ours")
           diff <(docker inspect -f "$env" "$official" | grep -v '^DD_' | sort) <(docker inspect -f "$env" "$ours" | sort)
-          # Ownership and modes survive the copy, and .next is exactly the new build
+          # Ownership and modes survive the copy, and .next is exactly the new build.
+          # statSync follows symlinks, so a link that does not resolve in the image fails here.
           check='const fs=require("fs");
-            const walk=(d)=>fs.readdirSync(d,{withFileTypes:true}).reduce((n,e)=>n+(e.isDirectory()?walk(d+"/"+e.name):1),0);
+            const walk=(d)=>fs.readdirSync(d,{withFileTypes:true}).reduce((n,e)=>{const p=d+"/"+e.name;if(e.isDirectory())return n+walk(p);fs.statSync(p);return n+1},0);
             const s=(p)=>{const x=fs.statSync(p);return p+" "+x.uid+":"+x.gid+" "+(x.mode&0o7777).toString(8)};
             console.log([s("/usr/local/src/app/packages/back-end/uploads"),s("/usr/local/src/app/packages/front-end"),s("/tmp")].join("\n"));
             console.log("next-files "+walk("/usr/local/src/app/packages/front-end/.next"));'
           docker run --rm --entrypoint /usr/local/bin/node "$official" -e "$check" | grep -v next-files > official.txt
           docker run --rm --entrypoint /usr/local/bin/node "$ours" -e "$check" > ours.txt
           cat ours.txt
+          echo "expected next-files $NEXT_FILES"
           diff official.txt <(grep -v next-files ours.txt)
           grep -qx "next-files $NEXT_FILES" ours.txt
           docker run --rm --entrypoint /usr/local/bin/node "$ours" -e 'require("fs").accessSync("/usr/local/src/app/packages/front-end/public/zh/dict.zh-CN.json")'

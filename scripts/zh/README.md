@@ -109,9 +109,31 @@ with a bind mount, without rebuilding.
 ## Memory
 
 The container runs the back-end API and the Next.js front-end server as two
-Node processes, plus the Python stats server. Each Node process holds about
-400 MB at idle, which is the loaded code and data rather than garbage, so
-`NODE_OPTIONS=--max-old-space-size=…` barely changes it. It is still useful as
-a cap so both processes cannot grow together past the container limit;
-`PM2_AUTORESTART=true` and `PM2_MAX_MEMORY_RESTART` make `scripts/run-apps.js`
-restart a single process instead of stopping the container.
+Node processes, plus the Python stats server and the `run-apps.js` supervisor.
+Measured at idle on 5.1.0:
+
+| Process          | RSS     | V8 heap after a full GC | Loaded CommonJS modules |
+| ---------------- | ------- | ----------------------- | ----------------------- |
+| back-end         | ~450 MB | ~305 MB                 | ~6700 (54 MB of source) |
+| front-end (Next) | ~410 MB | ~295 MB                 | ~3000 (27 MB of source) |
+| stats server     | ~130 MB | (numpy, scipy, pandas)  |                         |
+| run-apps.js      | ~50 MB  |                         |                         |
+
+The heap is live data, not garbage, so it is the code and the objects built
+when modules load:
+
+- The back-end loads the client SDK of every supported warehouse at start,
+  whichever one is used: `googleapis` (~23 MB of heap on its own),
+  `snowflake-sdk` (~22 MB), `@databricks/sql` and `mssql` (~12 MB each),
+  `mongoose`, BigQuery, Athena, ClickHouse… together over 100 MB.
+- The Next server renders every page through the same `_app` shell, so the
+  first server render loads the whole front-end bundle (echarts, highlight.js,
+  refractor…). Turning off `experimental.preloadEntriesOnStart` brings the
+  idle process down to ~55 MB, but the first request then takes ~25 s and the
+  process goes back to ~400 MB, so it is left on.
+
+`NODE_OPTIONS=--max-old-space-size=…` does not shrink any of this. It is still
+useful as a cap so both processes cannot grow together past the container
+limit; `PM2_AUTORESTART=true` and `PM2_MAX_MEMORY_RESTART` make
+`scripts/run-apps.js` restart a single process instead of stopping the
+container. Plan for about 1 GB for the container, plus MongoDB.
